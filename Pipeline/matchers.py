@@ -44,7 +44,7 @@ def apply_similarity_blocks(blocks1, blocks2, threshold, similarity_function, in
             if len(indices) > 1:
                 average_similarity /= len(indices)
 
-            if average_similarity > threshold:
+            if average_similarity >= threshold:
                 index_pairs = [(i, j) for i in block1['index'] for j in block2['index']]
                 similar_pairs.extend(index_pairs)
 
@@ -99,11 +99,9 @@ def apply_similarity_sorted_dictionary(blocks1, blocks2, threshold, similarity_f
     start_time = time.time()
 
     for (key1, block1), (key2, block2) in zip(blocks1.items(), blocks2.items()):
-        for elem1 in block1['ngram_values']:
-            for elem2 in block2['ngram_values']:
+        for elem1 in block1[indices]:
+            for elem2 in block2[indices]:
                 average_similarity = 0.0
-
-            
                 similarity = similarity_function(elem1, elem2)
                 average_similarity += similarity
 
@@ -117,59 +115,32 @@ def apply_similarity_sorted_dictionary(blocks1, blocks2, threshold, similarity_f
 
     return similar_pairs
 
-def apply_similarity_s(blocks1, blocks2, threshold, similarity_function, indices):
+# matcher for compare lengths
+def apply_similarity_lengths(blocks1, blocks2, threshold, similarity_function, indices):
     similar_pairs = []
 
+    # Record the start time
     start_time = time.time()
-    for block1, block2 in zip(blocks1, blocks2):
-        average_similarity = 0.0
 
-        value_block1 = [block1.get(i, '') for i in indices]
-        value_block2 = [block2.get(i, '') for i in indices]
-
-        similarity = similarity_function(value_block1, value_block2)
-        average_similarity += similarity
-
-        if len(indices) > 1:
-            average_similarity /= len(indices)
-
-        if average_similarity >= threshold:
-            index_pairs = [(block1['index'], block2['index'])]
-            similar_pairs.extend(index_pairs)
-    
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Processing time: {elapsed_time} seconds. Number of similar pairs: {len(similar_pairs)}")
-    return similar_pairs
-
-def apply_similarity_sw(blocks1, blocks2, threshold, similarity_function, indices):
-    similar_pairs = []
-
-    start_time = time.time()
-    for (key1, block1), (key2, block2) in zip(blocks1.items(), blocks2.items()):
+    for key1, block1 in blocks1.items():
+        for key2, block2 in blocks2.items():
             average_similarity = 0.0
 
-            # Assuming each block1 and block2 is a dictionary
-            value_block1 = [block1.get(i, '') for i in indices]
-            value_block2 = [block2.get(i, '') for i in indices]
-
+            value_block1 = [block1.get(indices)]
+            value_block2 = [block2.get(indices)]
             similarity = similarity_function(value_block1, value_block2)
-            average_similarity += similarity
 
-            if len(indices) > 1:
-                average_similarity /= len(indices)
-
-            if average_similarity >= threshold:
-                index_pairs = [(elem1, elem2) for elem1 in block1['index'] for elem2 in block2['index']]
+            if similarity >= threshold:
+                index_pairs = [(i, j) for i in block1['index'] for j in block2['index']]
                 similar_pairs.extend(index_pairs)
-    
+
+    # Record the end time
     end_time = time.time()
+
+    # Calculate the elapsed time
     elapsed_time = end_time - start_time
+
+    # Print the elapsed time
     print(f"Processing time: {elapsed_time} seconds. Number of similar pairs: {len(similar_pairs)}")
 
     return similar_pairs
-
-
-
-
-
