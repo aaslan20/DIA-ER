@@ -2,14 +2,13 @@ import pandas as pd
 
 # blocks by year
 def block_by_year_ranges(df, year_block, labels):
-    year_ranges = []
-    #year_block = [1995, 1998, 2001, 2005]
-    #labels = ["1995-1997", "1998-2000", "2001-2004"]
-
+    year_ranges = {}
+    
     df["year_range"] = pd.cut(df['year'], bins=year_block, labels=labels, right=False)
+    
     for label in labels:
-        intervals = df[df["year_range"] == label].to_numpy()
-        year_ranges.append(intervals)
+        intervals = df[df["year_range"] == label].to_dict(orient='records')
+        year_ranges[label] = intervals
 
     return year_ranges
 
@@ -30,6 +29,7 @@ def block_by_year_and_publisher(df, year_block, labels):
         year_ranges.extend(publisher_blocks)
 
     return year_ranges
+
 """
 def block_by_year_ranges_key_dynamic2(df, year_block, labels):
     year_ranges = []

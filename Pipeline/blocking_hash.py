@@ -43,3 +43,5 @@ def hash_blocking(dataframe, columns):
     dataframe['hash_value'] = dataframe['hash_key'].apply(lambda x: hashlib.md5(x.encode()).hexdigest())
     blocks = dataframe.groupby('hash_value').apply(lambda x: {'hash_value': x['hash_value'].iloc[0], 'index': x['index'].tolist()}).to_dict()
     return blocks
+
+
