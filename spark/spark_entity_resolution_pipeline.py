@@ -1,31 +1,45 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, collect_list, udf
-from pyspark.sql.types import StringType, IntegerType
-from similarity import levensthein_distance, jaccard_similarity, n_gram_similarity
+import findspark
+findspark.init()
 
-csv_folder = ".\CSV-files"
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, udf
+from pyspark.sql.types import StringType
+import hash_blocking_spark as hash
+import spark.length_blocking_spark as length
+csv_folder = r".\CSV-files"
+dblp_csv_path = r"\dblp.csv"
+acm_csv_path = r"\acm.csv"
 
 # Initialize Spark session
 spark = SparkSession.builder.appName("EntityResolution").getOrCreate()
+spark.sparkContext._jvm.System.gc()
 
 # Load CSV files into DataFrames
 # column names paper_title, author_names, year, publication_venue, index
-dblp_df = spark.read.csv(csv_folder+"DBLP19952004.csv", header=True)
-acm_df = spark.read.csv(csv_folder+"ACM19952004.csv", header=True)
+dblp_df = spark.read.csv(csv_folder+dblp_csv_path, header=True)
+acm_df = spark.read.csv(csv_folder+acm_csv_path, header=True)
 
 # Caste die "year"-Spalte zu einem Integer
 dblp_df = dblp_df.withColumn("year", col("year").cast("int"))
 acm_df = acm_df.withColumn("year", col("year").cast("int"))
 
-# Blocking: Assign entries to buckets based on blocking keys
-# Example: Blocking based on the "year" column
-dblp_blocked = dblp_df.groupBy("year").agg(collect_list("title").alias("titles"))
-acm_blocked = acm_df.groupBy("year").agg(collect_list("title").alias("titles"))
-# Überprüfe das resultierende DataFrame
-dblp_df.show(3)
-acm_df.show(3)
-dblp_blocked.show(3)
-acm_blocked.show(3)
+selected_columns = ['author_names', 'paper_title', 'year', 'publication_venue']
+selected_columns = ['author_names', 'paper_title']
+a = hash.initial_hash_parallel(acm_df, selected_columns)
+# a.show()
+# Check the number of groups when grouping by "initials"
+num_init_groups = a.groupBy("initials").count().count()
+num_hash_groups = a.groupBy("hash_value").count().count()
+
+# Print the number of groups
+print("Number of groups: ", num_init_groups)
+print("Number of groups: ", num_hash_groups)
+
+a = length.length_blocking_multi_columns_named_parallel(a, selected_columns)
+num_length_groups = a.groupBy("Legths").count().count()
+print("Number of groups: ", num_length_groups)
+
+spark.stop()
 exit()
 # Define a user-defined function (UDF) for similarity calculation
 def similarity_udf(title1, title2):

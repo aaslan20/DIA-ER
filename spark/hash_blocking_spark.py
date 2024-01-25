@@ -1,39 +1,46 @@
-from pyspark.sql import SparkSession
+
 from pyspark.sql.types import StringType
+from pyspark.sql.functions import concat_ws, when, udf
 import hashlib
-from pyspark.sql import functions as F
 
-def hash_partition(iterator):
-    for row in iterator:
-        blocking_key = row['blocking_key']
-        hash_value = hashlib.md5(blocking_key.encode()).hexdigest()
-        yield blocking_key, {'hash_value': hash_value, 'index': row['collect_list(index)']}
+func = {'author_names':udf(lambda entry: "".join(name[0] for name in entry.split()), StringType()),
+        'year':udf(lambda entry: str(entry), StringType()),
+        'publication_venue':udf(lambda entry: str(entry), StringType()),
+        'paper_title':udf(lambda entry: "".join(word[0] for word in entry.split()), StringType())}
 
+def initial_hash_parallel(df, columns_to_use):
+    # Verbesserung 2: Fehlerbehandlung für unbekannte Spalten hinzufügen
+    unknown_columns = set(columns_to_use) - set(df.columns)
+    if unknown_columns:
+        raise ValueError(f"Unknown column(s): {', '.join(unknown_columns)}")
 
-def initial_hash_parallel(path, columns_to_use):
-    spark = SparkSession.builder.appName("InitialHash").getOrCreate()
-    df = spark.read.csv(path, header=True, inferSchema=True)
-    
+    # Verbesserung 3: Kommentare hinzufügen
     if 'publication_venue' in columns_to_use:
-        df = df.withColumn('publication_venue', F.when(df['publication_venue'].contains('sigmod'), 'sigmod').otherwise('vldb'))
+        # Ändern der 'publication_venue'-Werte basierend auf einer Bedingung
+        df = df.withColumn('publication_venue', when(df['publication_venue'].contains('sigmod'), 'sigmod').otherwise('vldb'))
 
-    transform_author_names_udf = F.udf(lambda value: "".join([name[0] if len(name.split()) == 1 else name.split()[0][0] + name.split()[-1][0] for name in value.split()]), StringType())
-    transform_paper_title_udf = F.udf(lambda value: "".join([word[0] for word in value.split()]), StringType())
+    # Neue Spalte hinzufügen
+    df = df.withColumn("initials", concat_ws("", *(func[column_name](df[column_name]) for column_name in columns_to_use)))
+    df = df.withColumn("hash_value",udf(lambda entry: hashlib.md5(entry.encode()).hexdigest(), StringType())(df["initials"]))
+    return df
+if __name__ == "__main__":
+    import findspark
+    findspark.init()
+    from pyspark.sql import SparkSession
+    # Beispiel-Nutzung:
+    # SparkSession erstellen (wenn nicht bereits vorhanden)
+    spark = SparkSession.builder.appName("Example").getOrCreate()
 
-    for column in columns_to_use:
-        if column == 'author_names':
-            df = df.withColumn(column, transform_author_names_udf(column))
-        elif column == 'paper_title':
-            df = df.withColumn(column, transform_paper_title_udf(column))
-        elif column == 'year' or column == 'publication_venue':
-            df = df.withColumn(column, F.col(column).cast(StringType()))
+    # Beispiel DataFrame erstellen
+    data = [("A", "John Doe", 2022, "sigmod", "Data Science Paper"),
+            ("B", "Alice Smith", 2021, "icde", "Big Data Analytics")]
+    columns = ["id", "author_names", "year", "publication_venue", "paper_title"]
+    df = spark.createDataFrame(data, columns)
 
-    df = df.withColumn('blocking_key', F.udf(lambda *args: ''.join(str(arg) for arg in args), StringType())(*columns_to_use))
-    blocks = df.groupBy('blocking_key').agg(F.collect_list('index'))
+    # Funktion anwenden
+    columns_to_use = ['author_names', 'year', 'publication_venue', 'paper_title']
 
-    blocks = blocks.rdd.mapPartitions(hash_partition)
+    df_result = initial_hash_parallel(df, columns_to_use)
 
-    blocks_dict = dict(blocks.collect())
-
-    spark.stop()
-    return blocks_dict
+    # Ergebnisse anzeigen
+    df_result.show()
