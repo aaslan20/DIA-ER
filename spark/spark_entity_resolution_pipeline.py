@@ -1,18 +1,16 @@
-# import findspark
-# findspark.init()
+import findspark
+findspark.init()
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, udf
 from pyspark.sql.types import StringType
 import hash_blocking_spark as hash
-from pyspark.sql.functions import collect_list
+from pyspark.sql.functions import collect_list, when
 from itertools import combinations
-import os
-import sys
-print(os.getcwd()+"\spark")
-sys.path.append(os.getcwd()+"\spark")
-from length_blocking_spark import length_blocking
+import length_blocking_spark as length
+import time
 
+baselines_folder = r".\baselines"
 csv_folder = r".\CSV-files"
 dblp_csv_path = r"\dblp.csv"
 acm_csv_path = r"\acm.csv"
@@ -26,14 +24,33 @@ spark = SparkSession.builder.appName("EntityResolution").getOrCreate()
 dblp_df = spark.read.csv(csv_folder+dblp_csv_path, header=True, inferSchema=True)
 acm_df = spark.read.csv(csv_folder+acm_csv_path, header=True, inferSchema=True)
 
-selected_columns = ['author_names', 'paper_title', 'year', 'publication_venue']
-selected_columns = ['author_names', 'paper_title']
+dataframes = [dblp_df, acm_df]
+for df in dataframes:
+    df = df.withColumn('publication_venue', when(df['publication_venue'].contains('sigmod'), 'sigmod').otherwise('vldb'))
 
-print(os.getcwd())
+columns = dblp_df.columns
+columns.remove("index")
 
-a = length_blocking(acm_df, selected_columns)
-num_length_groups = a.groupBy("Legths").count().count()
-print("Number of groups: ", num_length_groups)
+blocking_functions = [length.length_blocking_parallel, hash.initial_hash_parallel] # Add your blocking functions here
+baselines = {0.7:{"jac":spark.read.csv(baselines_folder+r"\base_7_jac_stem.csv", header=True, inferSchema=True),
+                  "len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)},
+#                "lev":spark.read.csv(baselines_folder+r"\base_7_lev_stem.csv", header=True, inferSchema=True)},
+             0.85:{"jac":spark.read.csv(baselines_folder+r"\base_7_jac_stem.csv", header=True, inferSchema=True),
+                  "len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)}}#,
+                #"lev":spark.read.csv(baselines_folder+r"\base_7_lev_stem.csv", header=True, inferSchema=True)}}
+
+# Blocking: Apply blocking to both datasets
+for r in range(1, len(columns) + 1):
+    for comb in combinations(columns, r):
+        for blocking in blocking_functions:
+            for df in dataframes:
+                start_time = time.time()
+                blocked_df = blocking(df, comb)
+                grouped_df = blocked_df.groupBy("blocking_key")
+                end_time = time.time()
+                execution_time = end_time - start_time
+                count = grouped_df.count().count()
+                print(f"Combination {comb}\nwith blocking method '{blocking.__name__}'\ntook {execution_time} seconds and resulted in {count} groups.")
 
 spark.stop()
 exit()

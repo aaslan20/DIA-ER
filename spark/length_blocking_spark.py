@@ -1,32 +1,11 @@
 
-from pyspark.sql.types import StringType
+from pyspark.sql.types import StringType, IntegerType
 from pyspark.sql.functions import concat_ws, udf
+from pyspark.sql.functions import struct
 
-def length(x): # length of a string
-    return str(len(str(x)))
-
-udf_length = udf(length, StringType())
-
-def length_blocking(df, columns_to_use):
-    df = df.withColumn("Legths", concat_ws("_", *(udf_length(df[column_name]) for column_name in columns_to_use)))
+def length_blocking_parallel(df, columns_to_use):
+    udf_length_int = udf(lambda x: len(str(x)), IntegerType())
+    udf_length_str = udf(lambda x: str(len(str(x))), StringType())
+    df = df.withColumn("value",struct(*(udf_length_int(df[column_name]) for column_name in columns_to_use)))
+    df = df.withColumn("blocking_key", concat_ws("_", *(udf_length_str(df[column_name]) for column_name in columns_to_use)))
     return df
-
-if __name__ == "__main__":
-    from pyspark.sql import SparkSession
-    from pyspark.sql.functions import col
-    # SparkSession erstellen
-    spark = SparkSession.builder.appName("TestBeispiel").getOrCreate()
-
-    # Beispiel-Daten erstellen
-    data = [("Wert1", "Value1"), ("Wert2", "Value2"), ("Wert3", "Value3")]
-    columns = ["Spalte1", "Spalte2"]
-
-    # DataFrame erstellen
-    df = spark.createDataFrame(data, columns)
-
-    # Spaltenlängen berechnen und neue Spalte hinzufügen
-    columns_to_use = ["Spalte1", "Spalte2"]
-    df_neu = length_blocking(df, columns_to_use)
-
-    # Ergebnisse anzeigen
-    df_neu.show()
