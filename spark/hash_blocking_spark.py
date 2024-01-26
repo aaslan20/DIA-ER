@@ -21,8 +21,9 @@ def initial_hash_parallel(df, columns_to_use):
 
     # Neue Spalte hinzufügen
     df = df.withColumn("initials", concat_ws("", *(func[column_name](df[column_name]) for column_name in columns_to_use)))
-    df = df.withColumn("hash_value",udf(lambda entry: hashlib.md5(entry.encode()).hexdigest(), StringType())(df["initials"]))
+    df = df.withColumn("blocking_key",udf(lambda entry: hashlib.md5(entry.encode()).hexdigest(), StringType())(df["initials"]))
     return df
+
 if __name__ == "__main__":
     import findspark
     findspark.init()
