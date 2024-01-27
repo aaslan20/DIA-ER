@@ -60,7 +60,7 @@ def n_gram_blocking(df, columns, n) :
         df = df.withColumn('year', col('year').cast(StringType()))
 
 
-    ngrams_udf = udf(lambda s, n: [s[i:i+n] for i in range(len(s)-n+1)], ArrayType(StringType()))
+    ngrams_udf = udf(lambda s, n: [tuple(s[i:i+n]) for i in range(len(s)-n+1)], ArrayType(StringType()))
 
 
     ngram_col_names = []

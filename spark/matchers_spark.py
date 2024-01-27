@@ -43,24 +43,7 @@ def apply_similarity_blocks_spark(df1, df2, threshold, similarity_function):
 # for ngram_blocking cause is a list not a dict (similiar_pairs)
 def apply_ngram_blocks_spark(df1, df2, threshold, similarity_function):
     start_time = time.time()
-
-
-    """
-    df1 = spark.read.csv(blocks1, header=True, inferSchema=True)
-    df2 = spark.read.csv(blocks2, header=True, inferSchema=True)
-    data_tuples1 = [(key, value[field_name], value['index']) for key, value in df1.items()]
-    data_tuples2 = [(key, value[field_name], value['index']) for key, value in df2.items()]
-    
-    schema = StructType([       
-        StructField("blocking_key", StringType(), nullable=False),
-        StructField(field_name, StringType(), nullable=False),
-        StructField("index", ArrayType(StringType()), nullable=False)
-    ])
-    
-    blocks1_df = spark.createDataFrame(data_tuples1, schema=schema)
-    blocks2_df = spark.createDataFrame(data_tuples2, schema=schema)
-    """
-   
+ 
     similarity_udf = F.udf(lambda set1, set2: str(similarity_function(set(set1), set(set2))), StringType())
 
     joined_blocks = df1.alias("block1").crossJoin(df2.alias("block2"))
@@ -84,17 +67,13 @@ def apply_ngram_blocks_spark(df1, df2, threshold, similarity_function):
         index1_values = [value for value in index1_values]
         index2_values = [value for value in index2_values]
 
-    if len(index1_values) > 1 or len(index2_values) > 1:
-        index_combinations = list(product(index1_values, index2_values))
-        for combination in index_combinations:
-            processed_data.append((combination[0], combination[1]))
-    else:
-        processed_data.append(row)
+        if len(index1_values) > 1 or len(index2_values) > 1:
+            index_combinations = list(product(index1_values, index2_values))
+            for combination in index_combinations:
+                processed_data.append((combination[0], combination[1]))
+        else:
+            processed_data.append(row)
         
-        
-
-
-    
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"Processing time: {elapsed_time} seconds. Number of index combinations: {len(processed_data)}")
