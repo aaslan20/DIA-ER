@@ -12,6 +12,7 @@ def block_by_year_ranges(df, year_block, labels):
 
     return year_ranges
 
+
 # blocks by year and publisher -> for year 1995 two blocks one with only sigmod and one with only vldb
 def block_by_year_and_publisher(df, year_block, labels):
     year_ranges = []
@@ -29,6 +30,7 @@ def block_by_year_and_publisher(df, year_block, labels):
         year_ranges.extend(publisher_blocks)
 
     return year_ranges
+#
 
 """
 def block_by_year_ranges_key_dynamic2(df, year_block, labels):
