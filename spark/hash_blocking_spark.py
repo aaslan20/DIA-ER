@@ -25,7 +25,7 @@ def hash_partition(iterator):
 def initial_hash_parallel(df, columns_to_use, *args):
     # Neue Spalte hinzufügen
     df = df.withColumn("blocking_key", concat_ws("", *(func[column_name](df[column_name]) for column_name in columns_to_use)))
-    df = df.withColumn("value",udf(lambda entry: hashlib.md5(entry.encode()).hexdigest(), StringType())(df["initials"]))
+    df = df.withColumn("value",udf(lambda entry: hashlib.md5(entry.encode()).hexdigest(), StringType())(df["blocking_key"]))
 
 
     return df

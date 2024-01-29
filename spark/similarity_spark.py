@@ -1,4 +1,6 @@
 import numpy as np
+from pyspark.sql.functions import udf
+from pyspark.sql.types import DoubleType
 
 def levensthein_distance(set1, set2):
     # make the subcriptable 
@@ -27,7 +29,7 @@ def levensthein_distance(set1, set2):
     similarity = 1 - (matrix[m][n] / (m + n))
     return similarity
 
-
+@udf(returnType=DoubleType())
 def jaccard_similarity_wrapper(one, two):
     if isinstance(one, list) and isinstance(two, list):
         try:

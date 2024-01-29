@@ -74,12 +74,13 @@ for comb in combinations(augementations, 2):
 columns = dblp_df.columns
 columns.remove("index")
 
-blocking_functions = [length.length_blocking_parallel, hash.initial_hash_parallel, ngram.initial_ngram_parallel_df] # Add your blocking functions here
+blocking_functions = [length.length_blocking_parallel,\
+    hash.initial_hash_parallel, ngram.initial_ngram_parallel_df] # Add your blocking functions here
 baselines = {0.7:{"jac":spark.read.csv(baselines_folder+r"\base_7_jac_stem.csv", header=True, inferSchema=True),
                   #"len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)
                   },
 #                "lev":spark.read.csv(baselines_folder+r"\base_7_lev_stem.csv", header=True, inferSchema=True)},
-             0.85:{"jac":spark.read.csv(baselines_folder+r"\base_7_jac_stem.csv", header=True, inferSchema=True),
+             0.85:{"jac":spark.read.csv(baselines_folder+r"\base_85_jac_stem.csv", header=True, inferSchema=True),
                   #"len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)
                   }}#,
                 #"lev":spark.read.csv(baselines_folder+r"\base_7_lev_stem.csv", header=True, inferSchema=True)}}
@@ -95,10 +96,12 @@ for r in range(1, len(columns) + 1):
                 for df in [dblp_df_datasets[key], acm_df_datasets[key]]:
                     start_time = time.time()
                     blocked_df = blocking(df, comb, spark)
-                    grouped_df = blocked_df.groupBy("blocking_key")
+                    #grouped_df = blocked_df.groupBy("blocking_key")
+                    grouped_df = blocked_df
                     end_time = time.time()
                     execution_time = end_time - start_time
-                    count = grouped_df.count().count()
+                    #count = grouped_df.count().count()
+                    count = acm_blocked_df.select("blocking_key").distinct().count()
                     print(f"Combination {comb}\nwith blocking method '{blocking.__name__}'\ntook {execution_time} seconds and resulted in {count} groups on the {key} dataset.")
                     grouped_dfs.append(grouped_df)
                 for threshold in baselines:
