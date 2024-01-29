@@ -23,7 +23,7 @@ def apply_similarity_baseline(df1, df2, threshold, selected_columns, similarity_
                 pair = (row1['index'], row2['index'])
                 similar_pairs.append(pair)
     return similar_pairs
-
+indices = ['author_names', 'paper_title']
 # this method compares each block of blocks1 against each block of blocks2
 def apply_similarity_blocks(blocks1, blocks2, threshold, similarity_function, indices):
     similar_pairs = []
@@ -90,6 +90,9 @@ def apply_similarity_sorted(blocks1, blocks2, threshold, similarity_function, in
     print(f"Processing time: {elapsed_time} seconds. Number of similar pairs: {len(similar_pairs)}")
 
     return similar_pairs  # Return the list of pairs of indices that meet the similarity threshold
+
+# blocks1 = Liste und die Liste enthält listen mit einträgen als Dictionary
+
 
 # this is baiscally like sorthed, but the idea is that I sort first with sorted than each creatd block
 # is used for example n-gram blocking which gives dictionariex 

@@ -27,6 +27,7 @@ def levensthein_distance(set1, set2):
     similarity = 1 - (matrix[m][n] / (m + n))
     return similarity
 
+
 def jaccard_similarity(set1, set2):
     if not isinstance(set1, set):
         set1 = set(set1)
@@ -38,6 +39,7 @@ def jaccard_similarity(set1, set2):
     
     return intersection / union if union > 0 else 0
 
+# when the values are ngrams instead of string
 def jaccard_similarity_ngrams(ngrams1, ngrams2):
     set1 = set(map(tuple, ngrams1))
     set2 = set(map(tuple, ngrams2))
@@ -49,7 +51,6 @@ def jaccard_similarity_ngrams(ngrams1, ngrams2):
         return 0.0  
     
     return intersection / union
-
 
 # as in lecture for trigram example
 def n_gram_similarity(df1, df2):
@@ -66,9 +67,7 @@ def n_gram_similarity2(df1, df2):
     return 2 * intersection / len(df1) + len(df2)
 
 def exact_length_similarity(lengths1, lengths2):
-    # Check if lengths are exactly the same
     if lengths1 == lengths2:
-        return 1.0  # Full similarity for exact match
+        return 1.0  
     else:
         return 0.0
-
