@@ -4,10 +4,12 @@ findspark.init()
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, udf
 from pyspark.sql.types import StringType
-import hash_blocking_spark as hash
+
 from pyspark.sql.functions import collect_list, when
 from itertools import combinations
+import hash_blocking_spark as hash
 import length_blocking_spark as length
+import matchers_spark as matchers
 import time
 
 baselines_folder = r".\baselines"
@@ -23,8 +25,10 @@ spark = SparkSession.builder.appName("EntityResolution").getOrCreate()
 # column names paper_title, author_names, year, publication_venue, index
 dblp_df = spark.read.csv(csv_folder+dblp_csv_path, header=True, inferSchema=True)
 acm_df = spark.read.csv(csv_folder+acm_csv_path, header=True, inferSchema=True)
-
 dataframes = [dblp_df, acm_df]
+
+dblp_df_datasets = {"full": dblp_df}.update({group_key: group_df for group_key, group_df in matchers.blocking_by_year_and_publisher_column_(dblp_df, ["year", "publication_venue"]).groupBy("blocking_key")})
+acm_df_datasets = {"full": acm_df}.update({group_key: group_df for group_key, group_df in matchers.blocking_by_year_and_publisher_column_(acm_df, ["year", "publication_venue"]).groupBy("blocking_key")})
 for df in dataframes:
     df = df.withColumn('publication_venue', when(df['publication_venue'].contains('sigmod'), 'sigmod').otherwise('vldb'))
 
@@ -43,15 +47,22 @@ baselines = {0.7:{"jac":spark.read.csv(baselines_folder+r"\base_7_jac_stem.csv",
 for r in range(1, len(columns) + 1):
     for comb in combinations(columns, r):
         for blocking in blocking_functions:
-            for df in dataframes:
-                start_time = time.time()
-                blocked_df = blocking(df, comb)
-                grouped_df = blocked_df.groupBy("blocking_key")
-                end_time = time.time()
-                execution_time = end_time - start_time
-                count = grouped_df.count().count()
-                print(f"Combination {comb}\nwith blocking method '{blocking.__name__}'\ntook {execution_time} seconds and resulted in {count} groups.")
-
+            for key in dblp_df_datasets:
+                grouped_dfs = []
+                for df in [dblp_df_datasets[key], acm_df_datasets[key]]:
+                    start_time = time.time()
+                    blocked_df = blocking(df, comb)
+                    grouped_df = blocked_df.groupBy("blocking_key")
+                    end_time = time.time()
+                    execution_time = end_time - start_time
+                    count = grouped_df.count().count()
+                    print(f"Combination {comb}\nwith blocking method '{blocking.__name__}'\ntook {execution_time} seconds and resulted in {count} groups on the {key} dataset.")
+                    grouped_dfs.append(grouped_df)
+                for threshold in baselines:
+                    for similarity_function in baselines[threshold]:
+                        print(f"Applying {similarity_function} baseline with threshold {threshold} on {key} dataset.")
+                        matches = matchers.apply_similarity_sorted(grouped_dfs[0], grouped_dfs[1], threshold, similarity_function, ["value"])
+                        print(f"Found {len(matches)} matches.")
 spark.stop()
 exit()
 
@@ -106,7 +117,7 @@ precision = true_positives / (true_positives + false_positives)
 recall = true_positives / (true_positives + false_negatives)
 f_measure = 2 * (precision * recall) / (precision + recall)
 
-# Print evaluation metrics
+# Print evaluation similarity_functions
 print("Precision: {}".format(precision))
 print("Recall: {}".format(recall))
 print("F-measure: {}".format(f_measure))
