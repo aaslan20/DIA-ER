@@ -3,8 +3,8 @@ findspark.init()
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, udf, lower, upper, reverse
-from pyspark.sql.types import StringType
-from similarity_spark import jaccard_similarity_wrapper as jaccard_similarity
+from pyspark.sql.types import StringType, FloatType
+#from similarity_spark import jaccard_similarity_wrapper as jaccard_similarity
 from pyspark.sql.functions import collect_list, when
 from itertools import combinations
 import hash_blocking_spark as hash
@@ -22,6 +22,41 @@ acm_csv_path = r"\acm.csv"
 # Initialize Spark session
 spark = SparkSession.builder.appName("EntityResolution").getOrCreate()
 # spark.sparkContext._jvm.System.gc()
+
+@udf(FloatType())
+def jaccard_similarity_wrapper(one, two):
+    if isinstance(one, list) and isinstance(two, list):
+        try:
+            return jaccard_similarity_ngrams(one, two)
+        except:
+            return jaccard_similarity(one, two)
+    return jaccard_similarity(one, two)
+
+@udf(FloatType())
+def jaccard_similarity(set1, set2):
+    if not isinstance(set1, set):
+        set1 = set(set1)
+    if not isinstance(set2, set):
+        set2 = set(set2)
+    
+    intersection = len(set1 & set2)
+    union = len(set1 | set2)
+    
+    return intersection / union if union > 0 else 0
+
+# when the values are ngrams instead of string
+@udf(FloatType())
+def jaccard_similarity_ngrams(ngrams1, ngrams2):
+    set1 = set(map(tuple, ngrams1))
+    set2 = set(map(tuple, ngrams2))
+
+    intersection = len(set1.intersection(set2))
+    union = len(set1) + len(set2) - intersection   
+
+    if union == 0:
+        return 0.0  
+    
+    return intersection / union
 
 @udf(StringType())
 def title(entity: str) -> str:
@@ -85,6 +120,7 @@ baselines = {0.7:{"jac":spark.read.csv(baselines_folder+r"\base_7_jac_stem.csv",
                   }}#,
                 #"lev":spark.read.csv(baselines_folder+r"\base_7_lev_stem.csv", header=True, inferSchema=True)}}
 
+spark.udf.register("jaccard_similarity", jaccard_similarity)
 similarity_functions = {"jac":jaccard_similarity,} #[ratio] # Add your similarity functions here
 
 # Blocking: Apply blocking to both datasets

@@ -31,7 +31,7 @@ def apply_similarity_blocks_spark(df1, df2, threshold, similarity_function, *arg
 
     joined_blocks = df1.alias("block1").crossJoin(df2.alias("block2"))
     similar_pairs_df = joined_blocks.where(
-        (col("block1.value") == col("block2.value"))
+        (col("block1.blocking_key") == col("block2.blocking_key"))
     ).select(
         col("block1.index").alias("index1"),
         col("block2.index").alias("index2"),
