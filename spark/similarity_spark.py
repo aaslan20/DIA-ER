@@ -28,6 +28,14 @@ def levensthein_distance(set1, set2):
     return similarity
 
 
+def jaccard_similarity_wrapper(one, two):
+    if isinstance(one, list) and isinstance(two, list):
+        try:
+            return jaccard_similarity_ngrams(one, two)
+        except:
+            return jaccard_similarity(one, two)
+    return jaccard_similarity(one, two)
+
 def jaccard_similarity(set1, set2):
     if not isinstance(set1, set):
         set1 = set(set1)

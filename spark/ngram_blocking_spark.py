@@ -13,7 +13,7 @@ def ngram_partition(iterator, n):
 
 
 # dataframe version
-def initial_ngram_parallel_df(spark, df, columns_to_use, n):
+def initial_ngram_parallel_df(df, columns_to_use, spark, n=3):
     # wenn du dataframe direkt packst entferne das und statt path einfach df als parameter
     
     

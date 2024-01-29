@@ -22,15 +22,13 @@ def hash_partition(iterator):
         hash_value = hashlib.md5(blocking_key.encode()).hexdigest()
         yield blocking_key, {'value': hash_value, 'index': row['collect_list(index)']}
 
-"""
-def initial_hash_parallel(df, columns_to_use):
+def initial_hash_parallel(df, columns_to_use, *args):
     # Neue Spalte hinzufügen
     df = df.withColumn("blocking_key", concat_ws("", *(func[column_name](df[column_name]) for column_name in columns_to_use)))
     df = df.withColumn("value",udf(lambda entry: hashlib.md5(entry.encode()).hexdigest(), StringType())(df["initials"]))
 
 
     return df
-"""
 
 def hash_partition(iterator):
     for row in iterator:

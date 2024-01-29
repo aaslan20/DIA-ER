@@ -2,14 +2,16 @@ import findspark
 findspark.init()
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, udf
+from pyspark.sql.functions import col, udf, lower, upper, reverse
 from pyspark.sql.types import StringType
-
+from similarity_spark import jaccard_similarity_wrapper as jaccard_similarity
 from pyspark.sql.functions import collect_list, when
 from itertools import combinations
 import hash_blocking_spark as hash
 import length_blocking_spark as length
-import matchers_spark as matchers
+import ngram_blocking_spark as ngram
+from Levenshtein import ratio
+import matchers_spark as matchers #apply_similarity_sorted
 import time
 
 baselines_folder = r".\baselines"
@@ -21,27 +23,68 @@ acm_csv_path = r"\acm.csv"
 spark = SparkSession.builder.appName("EntityResolution").getOrCreate()
 # spark.sparkContext._jvm.System.gc()
 
+@udf(StringType())
+def title(entity: str) -> str:
+    return entity.title()
+
+# @udf(StringType())
+# def upper(entity: str) -> str:
+#     return entity.upper()
+
+# @udf(StringType())
+# def lower(entity: str) -> str:
+#     return entity.lower()
+
+@udf(StringType())
+def alphanumerical(entity: str) -> str:
+    return ''.join([char for char in entity if char.isalnum()])
+
+# @udf(StringType())
+# def reverse(entity: str) -> str:
+#     return entity[::-1]
+
 # Load CSV files into DataFrames
 # column names paper_title, author_names, year, publication_venue, index
 dblp_df = spark.read.csv(csv_folder+dblp_csv_path, header=True, inferSchema=True)
 acm_df = spark.read.csv(csv_folder+acm_csv_path, header=True, inferSchema=True)
 dataframes = [dblp_df, acm_df]
 
-dblp_df_datasets = {"full": dblp_df}.update({group_key: group_df for group_key, group_df in matchers.blocking_by_year_and_publisher_column_(dblp_df, ["year", "publication_venue"]).groupBy("blocking_key")})
-acm_df_datasets = {"full": acm_df}.update({group_key: group_df for group_key, group_df in matchers.blocking_by_year_and_publisher_column_(acm_df, ["year", "publication_venue"]).groupBy("blocking_key")})
 for df in dataframes:
     df = df.withColumn('publication_venue', when(df['publication_venue'].contains('sigmod'), 'sigmod').otherwise('vldb'))
+
+dblp_blocked_df = matchers.blocking_by_year_and_publisher_column_(dblp_df, None)
+acm_blocked_df = matchers.blocking_by_year_and_publisher_column_(acm_df, None)
+
+dblp_df_datasets = {"full": dblp_df}
+dblp_df_datasets.update({group_key:dblp_blocked_df.filter(col("blocking_key") == group_key) for group_key in dblp_blocked_df.select("blocking_key").distinct().rdd.flatMap(lambda x: x).collect()})
+acm_df_datasets = {"full": acm_df}
+acm_df_datasets.update({group_key:acm_blocked_df.filter(col("blocking_key") == group_key) for group_key in acm_blocked_df.select("blocking_key").distinct().rdd.flatMap(lambda x: x).collect()})
+
+augementations = [upper, lower, title, alphanumerical, reverse]
+
+# Preprocessing: Apply augmentations to both datasets
+for comb in combinations(augementations, 2):
+    for column, dtype in df.dtypes:
+        if column != "id" and dtype == "string":
+            dblp_result_df = dblp_df.withColumn(column, comb[1](comb[0](col(column))))
+            acm_result_df = acm_df.withColumn(column, comb[1](comb[0](col(column))))
+    dblp_df_datasets.update({f"{comb[0].__name__}_{comb[1].__name__}": dblp_result_df})
+    acm_df_datasets.update({f"{comb[0].__name__}_{comb[1].__name__}": acm_result_df})
 
 columns = dblp_df.columns
 columns.remove("index")
 
-blocking_functions = [length.length_blocking_parallel, hash.initial_hash_parallel] # Add your blocking functions here
+blocking_functions = [length.length_blocking_parallel, hash.initial_hash_parallel, ngram.initial_ngram_parallel_df] # Add your blocking functions here
 baselines = {0.7:{"jac":spark.read.csv(baselines_folder+r"\base_7_jac_stem.csv", header=True, inferSchema=True),
-                  "len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)},
+                  #"len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)
+                  },
 #                "lev":spark.read.csv(baselines_folder+r"\base_7_lev_stem.csv", header=True, inferSchema=True)},
              0.85:{"jac":spark.read.csv(baselines_folder+r"\base_7_jac_stem.csv", header=True, inferSchema=True),
-                  "len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)}}#,
+                  #"len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)
+                  }}#,
                 #"lev":spark.read.csv(baselines_folder+r"\base_7_lev_stem.csv", header=True, inferSchema=True)}}
+
+similarity_functions = {"jac":jaccard_similarity,} #[ratio] # Add your similarity functions here
 
 # Blocking: Apply blocking to both datasets
 for r in range(1, len(columns) + 1):
@@ -51,7 +94,7 @@ for r in range(1, len(columns) + 1):
                 grouped_dfs = []
                 for df in [dblp_df_datasets[key], acm_df_datasets[key]]:
                     start_time = time.time()
-                    blocked_df = blocking(df, comb)
+                    blocked_df = blocking(df, comb, spark)
                     grouped_df = blocked_df.groupBy("blocking_key")
                     end_time = time.time()
                     execution_time = end_time - start_time
@@ -59,10 +102,12 @@ for r in range(1, len(columns) + 1):
                     print(f"Combination {comb}\nwith blocking method '{blocking.__name__}'\ntook {execution_time} seconds and resulted in {count} groups on the {key} dataset.")
                     grouped_dfs.append(grouped_df)
                 for threshold in baselines:
-                    for similarity_function in baselines[threshold]:
-                        print(f"Applying {similarity_function} baseline with threshold {threshold} on {key} dataset.")
-                        matches = matchers.apply_similarity_sorted(grouped_dfs[0], grouped_dfs[1], threshold, similarity_function, ["value"])
+                    for similarity_function_key in baselines[threshold]:
+                        print(f"Applying {similarity_functions[similarity_function_key]} baseline with threshold {threshold} on {key} dataset.")
+                        matches = matchers.apply_similarity_blocks_spark(grouped_dfs[0], grouped_dfs[1], threshold, similarity_functions[similarity_function_key], ["value"])
                         print(f"Found {len(matches)} matches.")
+
+
 spark.stop()
 exit()
 

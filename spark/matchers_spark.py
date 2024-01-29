@@ -1,46 +1,44 @@
-from pyspark.sql.functions import concat_ws, udf
+from pyspark.sql.functions import concat_ws, udf, col, lit
 from pyspark.sql.types import StringType
 from pyspark.sql import DataFrame
 from typing import List, Callable
-from pyspark.sql.functions import col
-from pyspark.sql.types import StringType
 from pyspark.sql import DataFrame
-from Levenshtein import ratio
 import time
 from itertools import product
-import pyspark.sql.functions as F
 
-group_years = udf(lambda year, year_block, labels: labels[len([y for y in year_block if y <= year])-1], StringType())
+# UDF (User Defined Function) erstellen und Liste übergeben
+group_years_udf = udf(lambda year, year_block, labels: labels[len([y for y in year_block if y <= year])-1], returnType=StringType())
 
 def blocking_by_year_and_publisher_column_(df, columns_to_use, labels= ["1995", "1996", "1997", "1998", "1999", "2000", "2001", "2002", "2003", "2004"], year_block=[1995,1996,1997, 1998, 1999,2000,2001, 2002, 2003, 2004,2005]):
-    df = df.withColumn("blocking_key", concat_ws("-", group_years(df["year"], year_block, labels), df["publication_venue"]))
+    # Index-Spalte basierend auf der "year"-Spalte erstellen
+    df = df.withColumn("blocking_key", concat_ws("-", group_years_udf(df["year"], lit(year_block), lit(labels)), df["publication_venue"]))
     return df
 
-def apply_similarity_sorted(blocks1: DataFrame, blocks2: DataFrame, threshold: float, similarity_function: str, indices: List[str]):
-    blocks1 = blocks1.withColumn("value", col("value").cast(StringType()))
-    blocks2 = blocks2.withColumn("value", col("value").cast(StringType()))
+def apply_similarity_sorted(blocks1: DataFrame, blocks2: DataFrame, threshold: float, similarity_function: Callable, indices: List[str]):
+    # blocks1 = blocks1.withColumn("value", col("value").cast(StringType()))
+    # blocks2 = blocks2.withColumn("value", col("value").cast(StringType()))
 
     joined_blocks = blocks1.crossJoin(blocks2)
-    matched_blocks = joined_blocks.filter(ratio(col("blocks1.value"), col("blocks2.value")) > threshold)
+    matched_blocks = joined_blocks.filter(similarity_function(col("blocks1.value"), col("blocks2.value")) > threshold)
 
     matched_blocks_list = [(row["blocks1.index"], row["blocks2.index"]) for row in matched_blocks.collect()]
 
-    return matched_blocks_list
+    return list(set(matched_blocks_list))
 
-def apply_similarity_blocks_spark(df1, df2, threshold, similarity_function):
+def apply_similarity_blocks_spark(df1, df2, threshold, similarity_function, *args, **kwargs):
     start_time = time.time()   
-    similarity_udf = F.udf(lambda set1, set2: str(similarity_function(set(set1), set(set2))), StringType())
+    similarity_udf = udf(lambda set1, set2: str(similarity_function(set(set1), set(set2))), StringType())
 
     joined_blocks = df1.alias("block1").crossJoin(df2.alias("block2"))
     similar_pairs_df = joined_blocks.where(
-        (F.col("block1.value") == F.col("block2.value"))
+        (col("block1.value") == col("block2.value"))
     ).select(
-        F.col("block1.index").alias("index1"),
-        F.col("block2.index").alias("index2"),
-        similarity_udf(F.col("block1.value"), F.col("block2.value")).alias("similarity")
+        col("block1.index").alias("index1"),
+        col("block2.index").alias("index2"),
+        similarity_udf(col("block1.value"), col("block2.value")).alias("similarity")
     )
 
-    similar_pairs_df = similar_pairs_df.filter(F.col("similarity") >= threshold)
+    similar_pairs_df = similar_pairs_df.filter(col("similarity") >= threshold)
     similar_pairs = similar_pairs_df.collect()
 
     processed_data = []
@@ -67,18 +65,18 @@ def apply_similarity_blocks_spark(df1, df2, threshold, similarity_function):
 def apply_ngram_blocks_spark(df1, df2, threshold, similarity_function):
     start_time = time.time()
  
-    similarity_udf = F.udf(lambda set1, set2: str(similarity_function(set(set1), set(set2))), StringType())
+    similarity_udf = udf(lambda set1, set2: str(similarity_function(set(set1), set(set2))), StringType())
 
     joined_blocks = df1.alias("block1").crossJoin(df2.alias("block2"))
     similar_pairs_df = joined_blocks.where(
-        (F.col("block1.value") == F.col("block2.value"))
+        (col("block1.value") == col("block2.value"))
     ).select(
-        F.col("block1.index").alias("index1"),
-        F.col("block2.index").alias("index2"),
-        similarity_udf(F.col("block1.value"), F.col("block2.value")).alias("similarity")
+        col("block1.index").alias("index1"),
+        col("block2.index").alias("index2"),
+        similarity_udf(col("block1.value"), col("block2.value")).alias("similarity")
     )
 
-    similar_pairs_df = similar_pairs_df.filter(F.col("similarity") >= threshold)
+    similar_pairs_df = similar_pairs_df.filter(col("similarity") >= threshold)
     similar_pairs = similar_pairs_df.collect()
 
     processed_data = []
