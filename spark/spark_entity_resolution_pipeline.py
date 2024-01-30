@@ -13,6 +13,7 @@ import ngram_blocking_spark as ngram
 from Levenshtein import ratio
 import matchers_spark as matchers #apply_similarity_sorted
 import time
+import re
 
 baselines_folder = r".\baselines"
 csv_folder = r".\CSV-files"
@@ -109,8 +110,10 @@ for comb in combinations(augementations, 2):
 columns = dblp_df.columns
 columns.remove("index")
 
-blocking_functions = [length.length_blocking_parallel,\
-    hash.initial_hash_parallel, ngram.initial_ngram_parallel_df] # Add your blocking functions here
+blocking_functions = [#length.length_blocking_parallel,\
+    hash.initial_hash_parallel\
+        #, ngram.initial_ngram_parallel_df
+        ] # Add your blocking functions here
 baselines = {0.7:{"jac":spark.read.csv(baselines_folder+r"\base_7_jac_stem.csv", header=True, inferSchema=True),
                   #"len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)
                   },
@@ -143,8 +146,9 @@ for r in range(1, len(columns) + 1):
                         grouped_dfs.append(grouped_df)
                     for threshold in baselines:
                         for similarity_function_key in baselines[threshold]:
-                            print(f"Applying {similarity_functions[similarity_function_key]} baseline with threshold {threshold} on {key} dataset.")
-                            matches = matchers.apply_similarity_sorted(grouped_dfs[0], grouped_dfs[1], threshold, similarity_functions[similarity_function_key], ["value"])
+                            print(f"Applying {similarity_functions[similarity_function_key].__name__} baseline with threshold {threshold} on {key} dataset.")
+                            #matches = matchers.apply_similarity_sorted(grouped_dfs[0], grouped_dfs[1], threshold, similarity_functions[similarity_function_key], ["value"])
+                            matches = matchers.apply_similarity_blocks_spark(grouped_dfs[0], grouped_dfs[1], threshold, similarity_functions[similarity_function_key], ["value"])                            
                             print(f"Found {len(matches)} matches.")
 
 

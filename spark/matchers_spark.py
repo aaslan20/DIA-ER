@@ -18,7 +18,8 @@ def apply_similarity_sorted(blocks1: DataFrame, blocks2: DataFrame, threshold: f
     # blocks1 = blocks1.withColumn("value", col("value").cast(StringType()))
     # blocks2 = blocks2.withColumn("value", col("value").cast(StringType()))
 
-    joined_blocks = blocks1.alias("block1").crossJoin(blocks2.alias("block2"))
+    #joined_blocks = blocks1.alias("block1").crossJoin(blocks2.alias("block2"))
+    joined_blocks = blocks1.alias("block1").join(blocks2.alias("block2"), blocks1["blocking_key"] == blocks2["blocking_key"])
     matched_blocks = joined_blocks.filter(similarity_function(col("block1.value"), col("block2.value")) > threshold)
     
     # matched_blocks.show()
