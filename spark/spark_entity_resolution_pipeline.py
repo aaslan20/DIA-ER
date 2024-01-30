@@ -15,10 +15,10 @@ import matchers_spark as matchers #apply_similarity_sorted
 import time
 import re
 
-baselines_folder = r".\baselines"
-csv_folder = r".\CSV-files"
-dblp_csv_path = r"\dblp.csv"
-acm_csv_path = r"\acm.csv"
+baselines_folder = r"./baselines"
+csv_folder = r"./CSV-files"
+dblp_csv_path = r"/dblp_stem.csv"
+acm_csv_path = r"/acm_stem.csv"
 
 # Initialize Spark session
 spark = SparkSession.builder.appName("EntityResolution").getOrCreate()
@@ -111,14 +111,14 @@ columns = dblp_df.columns
 columns.remove("index")
 
 blocking_functions = [#length.length_blocking_parallel,\
-    hash.initial_hash_parallel\
+    hash.initial_hash_parallel_df\
         #, ngram.initial_ngram_parallel_df
         ] # Add your blocking functions here
-baselines = {0.7:{"jac":spark.read.csv(baselines_folder+r"\base_7_jac_stem.csv", header=True, inferSchema=True),
+baselines = {0.7:{"jac":spark.read.csv(baselines_folder+r"/base_7_jac_stem.csv", header=True, inferSchema=True),
                   #"len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)
                   },
 #                "lev":spark.read.csv(baselines_folder+r"\base_7_lev_stem.csv", header=True, inferSchema=True)},
-             0.85:{"jac":spark.read.csv(baselines_folder+r"\base_85_jac_stem.csv", header=True, inferSchema=True),
+             0.85:{"jac":spark.read.csv(baselines_folder+r"/base_85_jac_stem.csv", header=True, inferSchema=True),
                   #"len": spark.read.csv(baselines_folder+r"\base_7_l_stem.csv", header=True, inferSchema=True)
                   }}#,
                 #"lev":spark.read.csv(baselines_folder+r"\base_7_lev_stem.csv", header=True, inferSchema=True)}}

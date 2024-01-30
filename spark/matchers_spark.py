@@ -29,11 +29,12 @@ def apply_similarity_sorted(blocks1: DataFrame, blocks2: DataFrame, threshold: f
 
 def apply_similarity_blocks_spark(df1, df2, threshold, similarity_function, *args, **kwargs):
     start_time = time.time()   
+ 
     similarity_udf = udf(lambda set1, set2: str(similarity_function(set(set1), set(set2))), StringType())
 
     joined_blocks = df1.alias("block1").crossJoin(df2.alias("block2"))
     similar_pairs_df = joined_blocks.where(
-        (col("block1.blocking_key") == col("block2.blocking_key"))
+        (col("block1.value") == col("block2.value"))
     ).select(
         col("block1.index").alias("index1"),
         col("block2.index").alias("index2"),
