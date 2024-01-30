@@ -129,22 +129,23 @@ for r in range(1, len(columns) + 1):
         for blocking in blocking_functions:
             for key in dblp_df_datasets:
                 grouped_dfs = []
-                for df in [dblp_df_datasets[key], acm_df_datasets[key]]:
-                    start_time = time.time()
-                    blocked_df = blocking(df, comb, spark)
-                    #grouped_df = blocked_df.groupBy("blocking_key")
-                    grouped_df = blocked_df
-                    end_time = time.time()
-                    execution_time = end_time - start_time
-                    #count = grouped_df.count().count()
-                    count = acm_blocked_df.select("blocking_key").distinct().count()
-                    print(f"Combination {comb}\nwith blocking method '{blocking.__name__}'\ntook {execution_time} seconds and resulted in {count} groups on the {key} dataset.")
-                    grouped_dfs.append(grouped_df)
-                for threshold in baselines:
-                    for similarity_function_key in baselines[threshold]:
-                        print(f"Applying {similarity_functions[similarity_function_key]} baseline with threshold {threshold} on {key} dataset.")
-                        matches = matchers.apply_similarity_blocks_spark(grouped_dfs[0], grouped_dfs[1], threshold, similarity_functions[similarity_function_key], ["value"])
-                        print(f"Found {len(matches)} matches.")
+                if key in acm_df_datasets:
+                    for df in [dblp_df_datasets[key], acm_df_datasets[key]]:
+                        start_time = time.time()
+                        blocked_df = blocking(df, comb, spark)
+                        #grouped_df = blocked_df.groupBy("blocking_key")
+                        grouped_df = blocked_df
+                        end_time = time.time()
+                        execution_time = end_time - start_time
+                        #count = grouped_df.count().count()
+                        count = acm_blocked_df.select("blocking_key").distinct().count()
+                        print(f"Combination {comb}\nwith blocking method '{blocking.__name__}'\ntook {execution_time} seconds and resulted in {count} groups on the {key} dataset.")
+                        grouped_dfs.append(grouped_df)
+                    for threshold in baselines:
+                        for similarity_function_key in baselines[threshold]:
+                            print(f"Applying {similarity_functions[similarity_function_key]} baseline with threshold {threshold} on {key} dataset.")
+                            matches = matchers.apply_similarity_sorted(grouped_dfs[0], grouped_dfs[1], threshold, similarity_functions[similarity_function_key], ["value"])
+                            print(f"Found {len(matches)} matches.")
 
 
 spark.stop()
