@@ -148,7 +148,7 @@ for r in range(1, len(columns) + 1):
                         for similarity_function_key in baselines[threshold]:
                             print(f"Applying {similarity_functions[similarity_function_key].__name__} baseline with threshold {threshold} on {key} dataset.")
                             #matches = matchers.apply_similarity_sorted(grouped_dfs[0], grouped_dfs[1], threshold, similarity_functions[similarity_function_key], ["value"])
-                            matches = matchers.apply_similarity_blocks_spark(grouped_dfs[0], grouped_dfs[1], threshold, similarity_functions[similarity_function_key], ["value"])                            
+                            matches = matchers.apply_similarity_blocks_spark(grouped_dfs[0], grouped_dfs[1], threshold, similarity_functions[similarity_function_key])                            
                             print(f"Found {len(matches)} matches.")
 
 
